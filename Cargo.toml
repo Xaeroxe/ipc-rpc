@@ -1,0 +1,25 @@
+[package]
+name = "ipc-rpc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["message-schema-validation"]
+message-schema-validation = ["dep:schemars", "dep:serde_json"]
+
+[dependencies]
+futures = "0.3"
+ipc-channel = "0.16.0"
+log = "0.4"
+schemars = { version = "0.8.10", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0.85", optional = true }
+thiserror = "1.0"
+tokio = { version = "1.7", features = ["sync", "rt-multi-thread", "time", "macros", "process"] }
+uuid = { version = "1.1.2", features = ["serde", "v4"] }
+
+[dev-dependencies]
+env_logger = "0.8"
+test-log = "0.2.11"
