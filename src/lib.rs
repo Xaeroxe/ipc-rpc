@@ -263,9 +263,8 @@ async fn process_incoming_mail<
         }
         tokio::select! {
             _ = tokio::time::sleep_until(pending_reply_scheduled_time) => {
-                let now = Instant::now();
                 pending_replies.retain(|_k, v| {
-                    let keep = v.1 <= now;
+                    let keep = v.1 <= pending_reply_scheduled_time;
                     if !keep {
                         let _ = v.0.send(Err(IpcRpcError::ReplyTimeout));
                     }
