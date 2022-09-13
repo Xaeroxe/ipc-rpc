@@ -280,9 +280,6 @@ async fn process_incoming_mail<
                         break;
                     }
                     Some((reply_identifer, reply_entry)) => {
-                        if reply_entry.1 > Instant::now() + Duration::from_secs(300) {
-                            log::warn!("Timeout duration given for the reply was over 5 minutes long. That's a long time to wait for a response! Please consider refactoring this code to give regular progress reports.");
-                        }
                         pending_replies.insert(reply_identifer, reply_entry);
                     }
                 }

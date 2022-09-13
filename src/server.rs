@@ -153,9 +153,10 @@ impl<U: UserMessage> IpcRpcServer<U> {
                                     .expect("upstream guarantees this won't fail"),
                             ),
                         };
-                        if let Err(e) =
-                            pending_reply_sender.send((message.uuid, (sender, Instant::now())))
-                        {
+                        if let Err(e) = pending_reply_sender.send((
+                            message.uuid,
+                            (sender, Instant::now() + crate::DEFAULT_REPLY_TIMEOUT),
+                        )) {
                             log::error!("Failed to send entry for reply drop box {:?}", e);
                         }
                         match ipc_sender.send(message) {
