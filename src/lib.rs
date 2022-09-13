@@ -37,12 +37,12 @@
 //! If you decide that a failure to validate the schema should be a critical failure you can add the following line of code to your program for execution after a connection is established.
 //!
 //! ### Server
-//! ```rust
+//! ```ignore
 //! server.schema_validation().await.unwrap().assert_success();
 //! ```
 //!
 //! ### Client
-//! ```rust
+//! ```ignore
 //! client.schema_validation().await.unwrap().assert_success();
 //! ```
 //!
