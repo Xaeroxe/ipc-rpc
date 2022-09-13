@@ -415,8 +415,16 @@ pub enum SchemaValidationStatus {
 }
 
 impl SchemaValidationStatus {
+    /// Returns true if this is an instance of [`Self::SchemasMatched`], and false otherwise.
     pub fn is_success(&self) -> bool {
         matches!(self, SchemaValidationStatus::SchemasMatched)
+    }
+
+    /// Panics if this status is not [`Self::SchemasMatched`], and prints the debug information into the panic.
+    pub fn assert_success(&self) {
+        if !self.is_success() {
+            panic!("ipc-rpc user message schema failed to validate, error {self:#?}");
+        }
     }
 }
 
@@ -538,8 +546,8 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(server.schema_validated().await.unwrap().is_success());
-        assert!(client.schema_validated().await.unwrap().is_success());
+        server.schema_validated().await.unwrap().assert_success();
+        client.schema_validated().await.unwrap().assert_success();
         let client_reply = server
             .send(IpcProtocolMessage {
                 kind: IpcProtocolMessageKind::TestMessage,
@@ -600,8 +608,8 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(server.schema_validated().await.unwrap().is_success());
-        assert!(client.schema_validated().await.unwrap().is_success());
+        server.schema_validated().await.unwrap().assert_success();
+        client.schema_validated().await.unwrap().assert_success();
         let _ = server.send(IpcProtocolMessage {
             kind: IpcProtocolMessageKind::TestMessage,
         });
@@ -638,8 +646,8 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(server.schema_validated().await.unwrap().is_success());
-        assert!(client.schema_validated().await.unwrap().is_success());
+        server.schema_validated().await.unwrap().assert_success();
+        client.schema_validated().await.unwrap().assert_success();
         let client_reply = server
             .send(IpcProtocolMessage {
                 kind: IpcProtocolMessageKind::TestMessage,
@@ -779,8 +787,8 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(server.schema_validated().await.unwrap().is_success());
-        assert!(client.schema_validated().await.unwrap().is_success());
+        server.schema_validated().await.unwrap().assert_success();
+        client.schema_validated().await.unwrap().assert_success();
         rpc_call!(
             sender: server,
             to_send: IpcProtocolMessage {

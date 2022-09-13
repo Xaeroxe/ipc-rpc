@@ -1,7 +1,14 @@
 [package]
 name = "ipc-rpc"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
+documentation = "https://docs.rs/ipc-rpc/"
+description = "A wrapper over servo/ipc-channel which provides many high level features"
+repository = "https://github.com/Xaeroxe/ipc-rpc"
+readme = "README.md"
+license = "MIT"
+keywords = ["ipc", "rpc", "channel", "ipc-channel", "inter-process"]
+categories = ["asynchronous", "concurrency"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
