@@ -291,7 +291,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
         IpcReplyFuture { receiver }
     }
 
-    /// Sends a message, will give up on receiving a reply after the [`DEFAULT_REPLY_TIMEOUT`](./constant.DEFAULT_REPLY_TIMEMOUT.html) has passed.
+    /// Sends a message, will give up on receiving a reply after the [`DEFAULT_REPLY_TIMEOUT`](./constant.DEFAULT_REPLY_TIMEOUT.html) has passed.
     pub fn send(
         &self,
         user_message: U,
@@ -457,6 +457,7 @@ impl<U: UserMessage> IpcRpc<U> {
         })
     }
 
+    /// Sends a message, will give up on receiving a reply after the [`DEFAULT_REPLY_TIMEOUT`](./constant.DEFAULT_REPLY_TIMEOUT.html) has passed.
     pub fn send(
         &self,
         user_message: U,
@@ -464,6 +465,7 @@ impl<U: UserMessage> IpcRpc<U> {
         self.server.send(user_message)
     }
 
+    /// Sends a message, waiting the given `timeout` for a reply.
     pub fn send_timeout(
         &self,
         user_message: U,

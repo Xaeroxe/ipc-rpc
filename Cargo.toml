@@ -1,6 +1,6 @@
 [package]
 name = "ipc-rpc"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2021"
 documentation = "https://docs.rs/ipc-rpc/"
 description = "A wrapper over servo/ipc-channel which provides many high level features"

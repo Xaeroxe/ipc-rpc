@@ -178,7 +178,7 @@ impl<U: UserMessage> IpcRpcClient<U> {
         }
     }
 
-    /// Sends a message, will give up on receiving a reply after the [`DEFAULT_REPLY_TIMEOUT`](./constant.DEFAULT_REPLY_TIMEMOUT.html) has passed.
+    /// Sends a message, will give up on receiving a reply after the [`DEFAULT_REPLY_TIMEOUT`](./constant.DEFAULT_REPLY_TIMEOUT.html) has passed.
     pub fn send(
         &self,
         user_message: U,
