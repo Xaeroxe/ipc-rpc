@@ -37,7 +37,7 @@
 //! If you decide that a failure to validate the schema should be a critical failure you can add the following line of code to your program for execution after a connection is established.
 //!
 //! ### Server
-//! ```
+//! ```no_run
 //! # async {
 //! # let (_key, mut server) = ipc_rpc::IpcRpcServer::initialize_server(|_| async {Option::<()>::None}).await.unwrap();
 //! server.schema_validated().await.unwrap().assert_success();
@@ -45,10 +45,10 @@
 //! ```
 //!
 //! ### Client
-//! ```
+//! ```no_run
 //! # async {
 //! # use ipc_rpc::{IpcRpcClient, ConnectionKey};
-//! # let mut client = IpcRpcClient::initialize_client(ConnectionKey::from(uuid::Uuid::nil()), |_| async {Option::<()>::None}).await.unwrap();
+//! # let mut client = IpcRpcClient::initialize_client(ConnectionKey::from(String::new()), |_| async {Option::<()>::None}).await.unwrap();
 //! client.schema_validated().await.unwrap().assert_success();
 //! # };
 //! ```
@@ -59,6 +59,7 @@
 
 use std::{
     collections::HashMap,
+    convert::Infallible,
     env,
     ffi::OsString,
     fmt::Debug,
@@ -91,51 +92,37 @@ pub use server::*;
 
 /// This key can be used to connect to the IPC server it came with, even outside of this process.
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct ConnectionKey(Uuid);
+pub struct ConnectionKey(String);
 
-impl TryFrom<String> for ConnectionKey {
-    type Error = uuid::Error;
-
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        uuid::Uuid::parse_str(&s).map(Self)
+impl From<String> for ConnectionKey {
+    fn from(s: String) -> Self {
+        Self(s)
     }
 }
 
 impl FromStr for ConnectionKey {
-    type Err = uuid::Error;
+    type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        uuid::Uuid::parse_str(s).map(Self)
+        Ok(Self(s.to_string()))
     }
 }
 
 impl ToString for ConnectionKey {
     fn to_string(&self) -> String {
-        self.0.to_string()
+        self.0.clone()
     }
 }
 
 impl From<ConnectionKey> for OsString {
     fn from(s: ConnectionKey) -> Self {
-        OsString::from(s.0.to_string())
+        OsString::from(s.0)
     }
 }
 
 impl From<ConnectionKey> for String {
     fn from(key: ConnectionKey) -> Self {
-        key.0.to_string()
-    }
-}
-
-impl From<Uuid> for ConnectionKey {
-    fn from(u: Uuid) -> Self {
-        Self(u)
-    }
-}
-
-impl From<ConnectionKey> for Uuid {
-    fn from(o: ConnectionKey) -> Self {
-        o.0
+        key.0
     }
 }
 
@@ -551,7 +538,7 @@ impl<T> UserMessage for T where T: 'static + Send + Debug + Clone + DeserializeO
 ///
 /// # Example
 ///
-/// ```
+/// ```no_run
 /// use serde::{Deserialize, Serialize};
 /// use schemars::JsonSchema;
 /// use std::fmt::Debug;
@@ -567,7 +554,7 @@ impl<T> UserMessage for T where T: 'static + Send + Debug + Clone + DeserializeO
 ///
 /// # async {
 /// # use ipc_rpc::{IpcRpcClient, ConnectionKey, rpc_call};
-/// # let mut client = IpcRpcClient::initialize_client(ConnectionKey::from(uuid::Uuid::nil()), |_| async {Option::<Message>::None}).await.unwrap();
+/// # let mut client = IpcRpcClient::initialize_client(ConnectionKey::from(String::new()), |_| async {Option::<Message>::None}).await.unwrap();
 /// rpc_call!(
 ///     sender: client,
 ///     to_send: Message::MakeMeASandwich,

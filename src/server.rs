@@ -5,6 +5,7 @@ use std::{
     marker::PhantomData,
     path::{Path, PathBuf},
     process::Stdio,
+    str::FromStr,
     sync::Arc,
     thread,
 };
@@ -102,7 +103,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
         });
 
         Ok((
-            ConnectionKey(Uuid::parse_str(&server_name).expect("server_name is always uuid")),
+            ConnectionKey::from_str(&server_name).expect("server_name is always uuid"),
             IpcRpcServer {
                 sender: internal_sender,
                 pending_reply_sender,
