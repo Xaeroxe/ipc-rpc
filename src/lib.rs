@@ -742,6 +742,33 @@ mod tests {
         }
     }
 
+    #[test_log::test]
+    fn server_drop_does_not_hang() {
+        let thread = std::thread::spawn(|| {
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                let (_server_key, _server) = server::IpcRpcServer::initialize_server(
+                    |message: IpcProtocolMessage| async move {
+                        match message.kind {
+                            _ => None,
+                        }
+                    },
+                )
+                .await
+                .unwrap();
+            })
+        });
+
+        let start = Instant::now();
+        let timeout = Duration::from_secs(5);
+        while !thread.is_finished() {
+            if start.elapsed() >= timeout {
+                // Server drop is hanging, force quit with non-zero
+                std::process::exit(1);
+            }
+        }
+    }
+
     // This test checks to see if a task has come to an end, so it must wait for the runtime to drop.
     // Therefore tokio::test is not an option.
     #[test_log::test]

@@ -84,7 +84,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
         let (pending_reply_sender, pending_reply_reciever) = mpsc::unbounded_channel();
         let pending_reply_sender_clone = pending_reply_sender.clone();
         log::info!("{}Server initialized!", log_prefix);
-        tokio::task::spawn_blocking({
+        thread::spawn({
             let log_prefix = Arc::clone(&log_prefix);
             move || {
                 Self::startup(
@@ -134,7 +134,10 @@ impl<U: UserMessage> IpcRpcServer<U> {
         runtime: tokio::runtime::Handle,
     ) {
         // This will block. Luckily it's okay to do that here.
-        match server.accept() {
+        let new_client = server.accept();
+        // Now that we're no longer blocking, enter the tokio runtime.
+        let _handle = runtime.enter();
+        match new_client {
             Err(e) => {
                 log::error!("{}Error opening connection to client {:?}", log_prefix, e);
                 let e = IpcRpcError::from(e);
