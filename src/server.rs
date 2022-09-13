@@ -6,13 +6,14 @@ use std::{
     path::{Path, PathBuf},
     process::Stdio,
     sync::Arc,
-    thread, time,
+    thread,
 };
 
 use ipc_channel::ipc::{IpcOneShotServer, IpcSender};
 use tokio::{
     process::{Child, Command},
     sync::{mpsc, watch},
+    time::{Duration, Instant},
 };
 use uuid::Uuid;
 
@@ -101,7 +102,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
         });
 
         Ok((
-            ConnectionKey(server_name),
+            ConnectionKey(Uuid::parse_str(&server_name).expect("server_name is always uuid")),
             IpcRpcServer {
                 sender: internal_sender,
                 pending_reply_sender,
@@ -152,8 +153,8 @@ impl<U: UserMessage> IpcRpcServer<U> {
                                     .expect("upstream guarantees this won't fail"),
                             ),
                         };
-                        if let Err(e) = pending_reply_sender
-                            .send((message.uuid, (sender, time::Instant::now())))
+                        if let Err(e) =
+                            pending_reply_sender.send((message.uuid, (sender, Instant::now())))
                         {
                             log::error!("Failed to send entry for reply drop box {:?}", e);
                         }
@@ -271,6 +272,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
     fn internal_send(
         &self,
         message_kind: InternalMessageKind<U>,
+        timeout: Duration,
     ) -> impl Future<Output = Result<InternalMessageKind<U>, IpcRpcError>> + Send + 'static {
         let message = InternalMessage {
             uuid: Uuid::new_v4(),
@@ -279,7 +281,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
         let (sender, receiver) = mpsc::unbounded_channel();
         if let Err(e) = self
             .pending_reply_sender
-            .send((message.uuid, (sender, time::Instant::now())))
+            .send((message.uuid, (sender, Instant::now() + timeout)))
         {
             log::error!("Failed to send entry for reply drop box {:?}", e);
         }
@@ -287,11 +289,21 @@ impl<U: UserMessage> IpcRpcServer<U> {
         IpcReplyFuture { receiver }
     }
 
+    /// Sends a message, will give up on receiving a reply after the [`DEFAULT_REPLY_TIMEOUT`](./constant.DEFAULT_REPLY_TIMEMOUT.html) has passed.
     pub fn send(
         &self,
         user_message: U,
     ) -> impl Future<Output = Result<U, IpcRpcError>> + Send + 'static {
-        let send_fut = self.internal_send(InternalMessageKind::UserMessage(user_message));
+        self.send_timeout(user_message, crate::DEFAULT_REPLY_TIMEOUT)
+    }
+
+    /// Sends a message, waiting the given `timeout` for a reply.
+    pub fn send_timeout(
+        &self,
+        user_message: U,
+        timeout: Duration,
+    ) -> impl Future<Output = Result<U, IpcRpcError>> + Send + 'static {
+        let send_fut = self.internal_send(InternalMessageKind::UserMessage(user_message), timeout);
         async move {
             send_fut.await.map(|m| match m {
                 InternalMessageKind::UserMessage(m) => m,
@@ -448,6 +460,14 @@ impl<U: UserMessage> IpcRpc<U> {
         user_message: U,
     ) -> impl Future<Output = Result<U, IpcRpcError>> + Send + 'static {
         self.server.send(user_message)
+    }
+
+    pub fn send_timeout(
+        &self,
+        user_message: U,
+        timeout: Duration,
+    ) -> impl Future<Output = Result<U, IpcRpcError>> + Send + 'static {
+        self.server.send_timeout(user_message, timeout)
     }
 
     /// Returns the outcome of automatic schema validation testing. This testing is performed

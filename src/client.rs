@@ -1,4 +1,4 @@
-use std::{future::Future, sync::Arc, time};
+use std::{future::Future, sync::Arc};
 
 use crate::{
     get_log_prefix, process_incoming_mail, ConnectionKey, ConnectionStatus, InternalMessage,
@@ -6,7 +6,10 @@ use crate::{
     SchemaValidationStatus, UserMessage,
 };
 use ipc_channel::ipc::{self, IpcSender};
-use tokio::sync::{mpsc, watch};
+use tokio::{
+    sync::{mpsc, watch},
+    time::{Duration, Instant},
+};
 use uuid::Uuid;
 
 #[cfg(feature = "message-schema-validation")]
@@ -34,7 +37,7 @@ impl<U: UserMessage> IpcRpcClient<U> {
         F: Fn(U) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Option<U>> + Send,
     {
-        let ipc_sender = IpcSender::connect(key.0)?;
+        let ipc_sender = IpcSender::connect(key.to_string())?;
         let (sender, receiver) = ipc::channel::<InternalMessage<U>>()?;
         ipc_sender.send(InternalMessage {
             uuid: Uuid::new_v4(),
@@ -69,10 +72,13 @@ impl<U: UserMessage> IpcRpcClient<U> {
         };
         #[cfg(feature = "message-schema-validation")]
         {
-            let reply_future = ret.internal_send(InternalMessageKind::UserMessageSchema(
-                serde_json::to_string(&schema_for!(U))
-                    .expect("upstream guarantees this won't fail"),
-            ));
+            let reply_future = ret.internal_send(
+                InternalMessageKind::UserMessageSchema(
+                    serde_json::to_string(&schema_for!(U))
+                        .expect("upstream guarantees this won't fail"),
+                ),
+                crate::DEFAULT_REPLY_TIMEOUT,
+            );
             tokio::spawn(async move {
                 match reply_future.await {
                     Ok(InternalMessageKind::UserMessageSchemaOk) => {
@@ -135,6 +141,7 @@ impl<U: UserMessage> IpcRpcClient<U> {
     fn internal_send(
         &self,
         message_kind: InternalMessageKind<U>,
+        timeout: Duration,
     ) -> impl Future<Output = Result<InternalMessageKind<U>, IpcRpcError>> + Send + 'static {
         let (sender, receiver) = mpsc::unbounded_channel();
         let message = InternalMessage {
@@ -143,7 +150,7 @@ impl<U: UserMessage> IpcRpcClient<U> {
         };
         if let Err(e) = self
             .pending_reply_sender
-            .send((message.uuid, (sender, time::Instant::now())))
+            .send((message.uuid, (sender, Instant::now() + timeout)))
         {
             log::error!("Failed to send entry for reply drop box {:?}", e);
         }
@@ -154,11 +161,13 @@ impl<U: UserMessage> IpcRpcClient<U> {
         }
     }
 
-    pub fn send(
+    /// Sends a message, waiting the given `timeout` for a reply.
+    pub fn send_timeout(
         &self,
         user_message: U,
+        timeout: Duration,
     ) -> impl Future<Output = Result<U, IpcRpcError>> + Send + 'static {
-        let send_fut = self.internal_send(InternalMessageKind::UserMessage(user_message));
+        let send_fut = self.internal_send(InternalMessageKind::UserMessage(user_message), timeout);
         async move {
             send_fut.await.map(|m| match m {
                 InternalMessageKind::UserMessage(m) => m,
@@ -167,6 +176,14 @@ impl<U: UserMessage> IpcRpcClient<U> {
                 ),
             })
         }
+    }
+
+    /// Sends a message, will give up on receiving a reply after the [`DEFAULT_REPLY_TIMEOUT`](./constant.DEFAULT_REPLY_TIMEMOUT.html) has passed.
+    pub fn send(
+        &self,
+        user_message: U,
+    ) -> impl Future<Output = Result<U, IpcRpcError>> + Send + 'static {
+        self.send_timeout(user_message, crate::DEFAULT_REPLY_TIMEOUT)
     }
 
     pub fn wait_for_server_to_disconnect(

@@ -32,46 +32,53 @@
 //!
 //! This crate exposes one feature, `message-schema-validation`, which is on by default. This enables functionality related to the [`schemars`](https://crates.io/crates/schemars) crate.
 //! When enabled, the software will attempt to validate the user message schema on initialization of the connection. Failure to validate is not a critical failure, and won't crash the program.
-//! An error will be emitted in the logs, and this status can be retrieved programmatically via many functions, all called `schema_validation()`.
+//! An error will be emitted in the logs, and this status can be retrieved programmatically via many functions, all called `schema_validated()`.
 //!
 //! If you decide that a failure to validate the schema should be a critical failure you can add the following line of code to your program for execution after a connection is established.
 //!
 //! ### Server
-//! ```ignore
-//! server.schema_validation().await.unwrap().assert_success();
+//! ```
+//! # async {
+//! # let (_key, mut server) = ipc_rpc::IpcRpcServer::initialize_server(|_| async {Option::<()>::None}).await.unwrap();
+//! server.schema_validated().await.unwrap().assert_success();
+//! # };
 //! ```
 //!
 //! ### Client
-//! ```ignore
-//! client.schema_validation().await.unwrap().assert_success();
+//! ```
+//! # async {
+//! # use ipc_rpc::{IpcRpcClient, ConnectionKey};
+//! # let mut client = IpcRpcClient::initialize_client(ConnectionKey::from(uuid::Uuid::nil()), |_| async {Option::<()>::None}).await.unwrap();
+//! client.schema_validated().await.unwrap().assert_success();
+//! # };
 //! ```
 //!
 //! # Limitations
 //!
 //! Much like `servo/ipc-channel`, servers may only serve one client. Overcoming this limitation would require work within `servo/ipc-channel`.
 
-use std::collections::HashMap;
 use std::{
+    collections::HashMap,
     env,
     ffi::OsString,
+    fmt::Debug,
     future::Future,
     io,
+    path::Path,
     pin::Pin,
     str::FromStr,
     sync::Arc,
     task::{Context, Poll},
-    time::{self, Duration},
 };
 
 use futures::{Stream, StreamExt};
 use ipc_channel::ipc::{IpcError, IpcReceiver, IpcSender, TryRecvError};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::path::Path;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::{mpsc, watch};
-use tokio::time::Instant;
+use tokio::{
+    sync::{mpsc, watch},
+    time::{Duration, Instant},
+};
 use uuid::Uuid;
 
 #[cfg(feature = "message-schema-validation")]
@@ -84,13 +91,13 @@ pub use server::*;
 
 /// This key can be used to connect to the IPC server it came with, even outside of this process.
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct ConnectionKey(String);
+pub struct ConnectionKey(Uuid);
 
 impl TryFrom<String> for ConnectionKey {
     type Error = uuid::Error;
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
-        uuid::Uuid::parse_str(&s).map(move |_| Self(s))
+        uuid::Uuid::parse_str(&s).map(Self)
     }
 }
 
@@ -98,25 +105,37 @@ impl FromStr for ConnectionKey {
     type Err = uuid::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        uuid::Uuid::parse_str(s).map(|_| Self(s.to_string()))
+        uuid::Uuid::parse_str(s).map(Self)
     }
 }
 
 impl ToString for ConnectionKey {
     fn to_string(&self) -> String {
-        self.0.clone()
+        self.0.to_string()
     }
 }
 
 impl From<ConnectionKey> for OsString {
     fn from(s: ConnectionKey) -> Self {
-        OsString::from(s.0)
+        OsString::from(s.0.to_string())
     }
 }
 
 impl From<ConnectionKey> for String {
     fn from(key: ConnectionKey) -> Self {
-        key.0
+        key.0.to_string()
+    }
+}
+
+impl From<Uuid> for ConnectionKey {
+    fn from(u: Uuid) -> Self {
+        Self(u)
+    }
+}
+
+impl From<ConnectionKey> for Uuid {
+    fn from(o: ConnectionKey) -> Self {
+        o.0
     }
 }
 
@@ -128,7 +147,7 @@ type PendingReplyEntry<U> = (
     Uuid,
     (
         mpsc::UnboundedSender<Result<InternalMessageKind<U>, IpcRpcError>>,
-        time::Instant,
+        Instant,
     ),
 );
 /// Internal protocol message structure. Wraps the actual user message with some structure
@@ -196,17 +215,18 @@ impl From<ipc_channel::Error> for IpcRpcError {
     }
 }
 
-// Arbitrarily chosen performance tuning constants, will likely be tuned in response to real world performance.
-#[cfg(not(test))]
-const PENDING_REPLY_CLEANUP_DURATION: Duration = Duration::from_secs(10);
-#[cfg(not(test))]
-const PENDING_REPLY_CLEANUP_CHECK_DURATION: Duration = Duration::from_secs(5);
-
-// A different set of constants, chosen to make the unit tests run faster.
-#[cfg(test)]
-const PENDING_REPLY_CLEANUP_DURATION: Duration = Duration::from_millis(10);
-#[cfg(test)]
-const PENDING_REPLY_CLEANUP_CHECK_DURATION: Duration = Duration::from_millis(5);
+/// The default timeout used for `send()` style methods. Use `send_timeout()` to use something else.
+///
+/// This may change in the future. The current value is
+/// ```
+/// # use tokio::time::Duration;
+/// # assert_eq!(
+/// # ipc_rpc::DEFAULT_REPLY_TIMEOUT,
+/// Duration::from_secs(5)
+/// # );
+/// ```
+pub const DEFAULT_REPLY_TIMEOUT: Duration = Duration::from_secs(5);
+const PENDING_REPLY_CLEANUP_CHECK_DURATION: Duration = Duration::from_millis(100);
 
 /// Processes incoming messages for both the client and the server. Responsible for distributing
 /// and generating replies.
@@ -226,7 +246,7 @@ async fn process_incoming_mail<
         Uuid,
         (
             mpsc::UnboundedSender<Result<InternalMessageKind<U>, IpcRpcError>>,
-            time::Instant,
+            Instant,
         ),
     >::new();
     let message_handler = Arc::new(message_handler);
@@ -243,8 +263,9 @@ async fn process_incoming_mail<
         }
         tokio::select! {
             _ = tokio::time::sleep_until(pending_reply_scheduled_time) => {
+                let now = Instant::now();
                 pending_replies.retain(|_k, v| {
-                    let keep = v.1.elapsed() < PENDING_REPLY_CLEANUP_DURATION;
+                    let keep = v.1 <= now;
                     if !keep {
                         let _ = v.0.send(Err(IpcRpcError::ReplyTimeout));
                     }
@@ -258,8 +279,11 @@ async fn process_incoming_mail<
                         // Sender got dropped, time to close up shop.
                         break;
                     }
-                    Some(pending_reply) => {
-                        pending_replies.insert(pending_reply.0, pending_reply.1);
+                    Some((reply_identifer, reply_entry)) => {
+                        if reply_entry.1 > Instant::now() + Duration::from_secs(300) {
+                            log::warn!("Timeout duration given for the reply was over 5 minutes long. That's a long time to wait for a response! Please consider refactoring this code to give regular progress reports.");
+                        }
+                        pending_replies.insert(reply_identifer, reply_entry);
                     }
                 }
             },
@@ -531,7 +555,23 @@ impl<T> UserMessage for T where T: 'static + Send + Debug + Clone + DeserializeO
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// use serde::{Deserialize, Serialize};
+/// use schemars::JsonSchema;
+/// use std::fmt::Debug;
+///
+/// #[derive(Deserialize, Serialize, Debug, Clone, JsonSchema)]
+/// enum Message {
+///     MakeMeASandwich,
+///     /// The sandwiches are made of i32 around here, don't judge.
+///     ASandwich(Vec<i32>),
+/// }
+///
+/// // Initialize a client
+///
+/// # async {
+/// # use ipc_rpc::{IpcRpcClient, ConnectionKey, rpc_call};
+/// # let mut client = IpcRpcClient::initialize_client(ConnectionKey::from(uuid::Uuid::nil()), |_| async {Option::<Message>::None}).await.unwrap();
 /// rpc_call!(
 ///     sender: client,
 ///     to_send: Message::MakeMeASandwich,
@@ -540,6 +580,7 @@ impl<T> UserMessage for T where T: 'static + Send + Debug + Clone + DeserializeO
 ///     },
 /// )
 /// .unwrap()
+/// # };
 /// ```
 #[macro_export]
 macro_rules! rpc_call {
@@ -722,8 +763,6 @@ mod tests {
     // Therefore tokio::test is not an option.
     #[test_log::test]
     fn server_disconnect_test() {
-        use std::time::Instant;
-
         // We use an empty Arc as a resource inside the message handler to prove the message handler
         // was dropped. If the message handler was dropped then the cleanup routines were executed.
         let drop_detector = Arc::new(());

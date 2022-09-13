@@ -36,18 +36,18 @@ executors, but sufficient demand for other executors may change that.
 
 This crate exposes one feature, `message-schema-validation`, which is on by default. This enables functionality related to the [`schemars`](https://crates.io/crates/schemars) crate.
 When enabled, the software will attempt to validate the user message schema on initialization of the connection. Failure to validate is not a critical failure, and won't crash the program. 
-An error will be emitted in the logs, and this status can be retrieved programmatically via many functions, all called `schema_validation()`.
+An error will be emitted in the logs, and this status can be retrieved programmatically via many functions, all called `schema_validated()`.
 
 If you decide that a failure to validate the schema should be a critical failure you can add the following line of code to your program for execution after a connection is established.
 
 ### Server
 ```rust
-server.schema_validation().await.unwrap().assert_success();
+server.schema_validated().await.unwrap().assert_success();
 ```
 
 ### Client
 ```rust
-client.schema_validation().await.unwrap().assert_success();
+client.schema_validated().await.unwrap().assert_success();
 ```
 
 # Running the examples
