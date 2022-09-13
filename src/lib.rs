@@ -609,7 +609,7 @@ mod tests {
         ServerTestReply,
     }
 
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 3))]
     async fn basic_dialogue() {
         let (server_key, mut server) =
             server::IpcRpcServer::initialize_server(|message: IpcProtocolMessage| async move {
@@ -661,7 +661,7 @@ mod tests {
         }
     }
 
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 3))]
     async fn send_without_await() {
         let (server_success_sender, mut server_success_receiver) = mpsc::unbounded_channel();
         let (client_success_sender, mut client_success_receiver) = mpsc::unbounded_channel();
@@ -715,7 +715,7 @@ mod tests {
         );
     }
 
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 3))]
     async fn timeout_test() {
         let (server_key, mut server) =
             server::IpcRpcServer::initialize_server(|message: IpcProtocolMessage| async move {
@@ -850,7 +850,7 @@ mod tests {
         assert_eq!(Arc::strong_count(&drop_detector), 1);
     }
 
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 3))]
     async fn rpc_call_macro_test() {
         let (server_key, mut server) =
             server::IpcRpcServer::initialize_server(|message: IpcProtocolMessage| async move {
