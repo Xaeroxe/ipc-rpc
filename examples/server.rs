@@ -28,10 +28,14 @@ async fn main() {
         .try_init()
         .unwrap();
     let mut server_client_combo = IpcRpc::build()
-        .finish("target/debug/examples/client", message_handler, |key, cmd| {
-            let key: OsString = key.into();
-            cmd.arg(key);
-        })
+        .finish(
+            "target/debug/examples/client",
+            message_handler,
+            |key, cmd| {
+                let key: OsString = key.into();
+                cmd.arg(key);
+            },
+        )
         .await
         .unwrap();
     server_client_combo
