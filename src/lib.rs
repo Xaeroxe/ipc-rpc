@@ -251,7 +251,7 @@ async fn process_incoming_mail<
         tokio::select! {
             _ = tokio::time::sleep_until(pending_reply_scheduled_time) => {
                 pending_replies.retain(|_k, v| {
-                    let keep = v.1 <= pending_reply_scheduled_time;
+                    let keep = v.1 > Instant::now();
                     if !keep {
                         let _ = v.0.send(Err(IpcRpcError::ReplyTimeout));
                     }
@@ -724,24 +724,80 @@ mod tests {
         .unwrap();
         server.schema_validated().await.unwrap().assert_success();
         client.schema_validated().await.unwrap().assert_success();
+        let wait_start = Instant::now();
         let client_reply = server
             .send(IpcProtocolMessage {
                 kind: IpcProtocolMessageKind::TestMessage,
             })
             .await;
+        assert!(wait_start.elapsed() >= DEFAULT_REPLY_TIMEOUT);
         if !matches!(client_reply, Err(IpcRpcError::ReplyTimeout)) {
             panic!("client reply was of unexpected type: {:?}", client_reply);
         }
+        let wait_start = Instant::now();
         let server_reply = client
             .send(IpcProtocolMessage {
                 kind: IpcProtocolMessageKind::TestMessage,
             })
             .await;
+        assert!(wait_start.elapsed() >= DEFAULT_REPLY_TIMEOUT);
         if !matches!(server_reply, Err(IpcRpcError::ReplyTimeout)) {
             panic!("server reply was of unexpected type: {:?}", server_reply);
         }
     }
 
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 3))]
+    async fn custom_timeout_test() {
+        let (server_key, mut server) =
+            server::IpcRpcServer::initialize_server(|message: IpcProtocolMessage| async move {
+                match message.kind {
+                    _ => None,
+                }
+            })
+            .await
+            .unwrap();
+        let mut client = client::IpcRpcClient::initialize_client(
+            server_key,
+            |message: IpcProtocolMessage| async move {
+                match message.kind {
+                    _ => None,
+                }
+            },
+        )
+        .await
+        .unwrap();
+        server.schema_validated().await.unwrap().assert_success();
+        client.schema_validated().await.unwrap().assert_success();
+        let custom_timeout: Duration = DEFAULT_REPLY_TIMEOUT / 2;
+        let wait_start = Instant::now();
+        let client_reply = server
+            .send_timeout(
+                IpcProtocolMessage {
+                    kind: IpcProtocolMessageKind::TestMessage,
+                },
+                custom_timeout,
+            )
+            .await;
+        assert!(wait_start.elapsed() >= custom_timeout);
+        assert!(wait_start.elapsed() < DEFAULT_REPLY_TIMEOUT);
+        if !matches!(client_reply, Err(IpcRpcError::ReplyTimeout)) {
+            panic!("client reply was of unexpected type: {:?}", client_reply);
+        }
+        let wait_start = Instant::now();
+        let server_reply = client
+            .send_timeout(
+                IpcProtocolMessage {
+                    kind: IpcProtocolMessageKind::TestMessage,
+                },
+                custom_timeout,
+            )
+            .await;
+        assert!(wait_start.elapsed() >= custom_timeout);
+        assert!(wait_start.elapsed() < DEFAULT_REPLY_TIMEOUT);
+        if !matches!(server_reply, Err(IpcRpcError::ReplyTimeout)) {
+            panic!("server reply was of unexpected type: {:?}", server_reply);
+        }
+    }
     #[test_log::test]
     fn server_drop_does_not_hang() {
         let thread = std::thread::spawn(|| {
