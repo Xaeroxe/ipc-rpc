@@ -247,7 +247,7 @@ async fn process_incoming_mail<
             pending_replies.insert(pending_reply.0, pending_reply.1);
         }
         tokio::select! {
-            Some(_) = async { if let Some(t) = pending_reply_scheduled_time { Some(tokio::time::sleep_until(t).await) } else { None } } => {
+            true = async { if let Some(t) = pending_reply_scheduled_time { tokio::time::sleep_until(t).await; true } else { false } } => {
                 pending_replies.retain(|_k, v| {
                     let keep = v.1 > Instant::now();
                     if !keep {
