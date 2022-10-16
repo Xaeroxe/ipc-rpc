@@ -213,7 +213,6 @@ impl From<ipc_channel::Error> for IpcRpcError {
 /// # );
 /// ```
 pub const DEFAULT_REPLY_TIMEOUT: Duration = Duration::from_secs(5);
-const PENDING_REPLY_CLEANUP_CHECK_DURATION: Duration = Duration::from_millis(100);
 
 /// Processes incoming messages for both the client and the server. Responsible for distributing
 /// and generating replies.
@@ -240,8 +239,7 @@ async fn process_incoming_mail<
     let log_prefix = get_log_prefix(is_server);
     log::info!("{}Processing incoming mail!", log_prefix);
     let mut consecutive_error_count = 0;
-    let now = Instant::now();
-    let mut pending_reply_scheduled_time = now + PENDING_REPLY_CLEANUP_CHECK_DURATION;
+    let mut pending_reply_scheduled_time = None;
     loop {
         // Empty out the pending reply receiver before entering the select below. This guarantees
         // that all queued reply drop boxes are processed before we start receiving incoming mail.
@@ -249,7 +247,7 @@ async fn process_incoming_mail<
             pending_replies.insert(pending_reply.0, pending_reply.1);
         }
         tokio::select! {
-            _ = tokio::time::sleep_until(pending_reply_scheduled_time) => {
+            Some(_) = async { if let Some(t) = pending_reply_scheduled_time { Some(tokio::time::sleep_until(t).await) } else { None } } => {
                 pending_replies.retain(|_k, v| {
                     let keep = v.1 > Instant::now();
                     if !keep {
@@ -257,7 +255,7 @@ async fn process_incoming_mail<
                     }
                     keep
                 });
-                pending_reply_scheduled_time += PENDING_REPLY_CLEANUP_CHECK_DURATION;
+                pending_reply_scheduled_time = None;
             }
             pending_reply = pending_reply_receiver.recv() => {
                 match pending_reply {
@@ -266,6 +264,7 @@ async fn process_incoming_mail<
                         break;
                     }
                     Some((reply_identifer, reply_entry)) => {
+                        pending_reply_scheduled_time = Some(reply_entry.1);
                         pending_replies.insert(reply_identifer, reply_entry);
                     }
                 }
