@@ -255,7 +255,7 @@ async fn process_incoming_mail<
                     }
                     keep
                 });
-                pending_reply_scheduled_time = None;
+                pending_reply_scheduled_time = pending_replies.values().map(|i| i.1).min();
             }
             pending_reply = pending_reply_receiver.recv() => {
                 match pending_reply {
@@ -264,7 +264,7 @@ async fn process_incoming_mail<
                         break;
                     }
                     Some((reply_identifer, reply_entry)) => {
-                        pending_reply_scheduled_time = Some(reply_entry.1);
+                        pending_reply_scheduled_time = Some(pending_reply_scheduled_time.map(|t| t.min(reply_entry.1)).unwrap_or(reply_entry.1));
                         pending_replies.insert(reply_identifer, reply_entry);
                     }
                 }
