@@ -239,12 +239,28 @@ async fn process_incoming_mail<
     let log_prefix = get_log_prefix(is_server);
     log::info!("{}Processing incoming mail!", log_prefix);
     let mut consecutive_error_count = 0;
-    let mut pending_reply_scheduled_time = None;
+    let mut pending_reply_scheduled_time = Option::<Instant>::None;
+
+    let add_pending_reply = |pending_reply_scheduled_time: &mut Option<Instant>,
+                             pending_replies: &mut HashMap<_, _>,
+                             (key, (sender, timeout))| {
+        *pending_reply_scheduled_time = Some(
+            pending_reply_scheduled_time
+                .map(|t| t.min(timeout))
+                .unwrap_or(timeout),
+        );
+
+        pending_replies.insert(key, (sender, timeout));
+    };
     loop {
         // Empty out the pending reply receiver before entering the select below. This guarantees
         // that all queued reply drop boxes are processed before we start receiving incoming mail.
         while let Ok(pending_reply) = pending_reply_receiver.try_recv() {
-            pending_replies.insert(pending_reply.0, pending_reply.1);
+            add_pending_reply(
+                &mut pending_reply_scheduled_time,
+                &mut pending_replies,
+                pending_reply,
+            );
         }
         tokio::select! {
             true = async { if let Some(t) = pending_reply_scheduled_time { tokio::time::sleep_until(t).await; true } else { false } } => {
@@ -263,9 +279,8 @@ async fn process_incoming_mail<
                         // Sender got dropped, time to close up shop.
                         break;
                     }
-                    Some((reply_identifer, reply_entry)) => {
-                        pending_reply_scheduled_time = Some(pending_reply_scheduled_time.map(|t| t.min(reply_entry.1)).unwrap_or(reply_entry.1));
-                        pending_replies.insert(reply_identifer, reply_entry);
+                    Some(pending_reply) => {
+                        add_pending_reply(&mut pending_reply_scheduled_time, &mut pending_replies, pending_reply);
                     }
                 }
             },
