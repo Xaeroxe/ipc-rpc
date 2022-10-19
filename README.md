@@ -6,6 +6,8 @@ Inter-Process Communication Remote Procedure Calls
 
 [Documentation](https://docs.rs/ipc-rpc/)
 
+Minimum Supported Rust Version: 1.61
+
 This Rust library is a wrapper over [`servo/ipc-channel`](https://github.com/servo/ipc-channel) that adds many new features.
 
 - Bi-directional communication by default.

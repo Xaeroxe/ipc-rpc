@@ -14,10 +14,18 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        rust-toolchain: ["1.61", "stable"]
     runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v3
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: ${{ matrix.rust-toolchain }}
+        components: clippy
+        default: true
     - name: Clippy
       run: cargo clippy --verbose -- -D warnings
     - name: Clippy without default features

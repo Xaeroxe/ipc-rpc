@@ -9,6 +9,7 @@ readme = "README.md"
 license = "MIT"
 keywords = ["ipc", "rpc", "channel", "ipc-channel", "inter-process"]
 categories = ["asynchronous", "concurrency"]
+rust = "1.61"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

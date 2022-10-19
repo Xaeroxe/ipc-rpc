@@ -2,6 +2,8 @@
 //!
 //! [![Crates.io](https://img.shields.io/crates/v/ipc-rpc.svg)](https://crates.io/crates/ipc-rpc/)
 //!
+//! Minimum Supported Rust Version: 1.61
+//!
 //! This Rust library is a wrapper over [`servo/ipc-channel`](https://github.com/servo/ipc-channel) that adds many new features.
 //!
 //! - Bi-directional communication by default.
