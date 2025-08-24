@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[cfg(feature = "message-schema-validation")]
-use schemars::{schema::RootSchema, schema_for};
+use schemars::{schema_for, Schema};
 
 use super::{ConnectionKey, InternalMessage, InternalMessageKind};
 
@@ -198,8 +198,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
                                                     "Failed to set validation_status {e:#?}"
                                                 );
                                             }
-                                            match serde_json::from_str::<RootSchema>(&other_schema)
-                                            {
+                                            match serde_json::from_str::<Schema>(&other_schema) {
                                                 Ok(other_schema) => {
                                                     if other_schema == my_schema {
                                                         log::error!("Client failed validation on user message schema, but the schemas match. This is probably a bug in ipc-rpc.");

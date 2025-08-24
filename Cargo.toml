@@ -1,6 +1,6 @@
 [package]
 name = "ipc-rpc"
-version = "1.2.6"
+version = "2.0.0"
 edition = "2021"
 documentation = "https://docs.rs/ipc-rpc/"
 description = "A wrapper over servo/ipc-channel which provides many high level features"
@@ -9,7 +9,7 @@ readme = "README.md"
 license = "MIT"
 keywords = ["ipc", "rpc", "channel", "ipc-channel", "inter-process"]
 categories = ["asynchronous", "concurrency"]
-rust-version = "1.61"
+rust-version = "1.64"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,15 +19,15 @@ message-schema-validation = ["dep:schemars", "dep:serde_json"]
 
 [dependencies]
 futures = "0.3"
-ipc-channel = "0.16.0"
+ipc-channel = "0.20.1"
 log = "0.4"
-schemars = { version = "0.8.10", optional = true }
+schemars = { version = "1.0.4", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0.85", optional = true }
-thiserror = "1.0"
+thiserror = "2.0"
 tokio = { version = "1.7", features = ["sync", "rt-multi-thread", "time", "macros", "process"] }
-uuid = { version = "1.1.2", features = ["serde", "v4"] }
+uuid = { version = "1.18.0", features = ["serde", "v4"] }
 
 [dev-dependencies]
-env_logger = "0.8"
-test-log = "0.2.11"
+env_logger = "0.11.8"
+test-log = "0.2.18"

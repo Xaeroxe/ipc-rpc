@@ -13,7 +13,7 @@ use tokio::{
 use uuid::Uuid;
 
 #[cfg(feature = "message-schema-validation")]
-use schemars::{schema::RootSchema, schema_for};
+use schemars::{schema_for, Schema};
 
 /// Used to send messages to the connected server.
 #[derive(Debug, Clone)]
@@ -100,7 +100,7 @@ impl<U: UserMessage> IpcRpcClient<U> {
                         if let Err(e) = res {
                             log::error!("Failed to set validation_status {e:#?}");
                         }
-                        match serde_json::from_str::<RootSchema>(&other_schema) {
+                        match serde_json::from_str::<Schema>(&other_schema) {
                             Ok(other_schema) => {
                                 if other_schema == my_schema {
                                     log::error!("Server failed validation on user message schema, but the schemas match. This is probably a bug in ipc-rpc.");

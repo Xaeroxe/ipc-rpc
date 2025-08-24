@@ -64,7 +64,7 @@ use std::{
     convert::Infallible,
     env,
     ffi::OsString,
-    fmt::Debug,
+    fmt::{self, Debug, Display},
     future::Future,
     io,
     path::Path,
@@ -85,7 +85,7 @@ use tokio::{
 use uuid::Uuid;
 
 #[cfg(feature = "message-schema-validation")]
-use schemars::{schema::RootSchema, schema_for, JsonSchema};
+use schemars::{schema_for, JsonSchema, Schema};
 
 mod client;
 pub use client::*;
@@ -110,9 +110,9 @@ impl FromStr for ConnectionKey {
     }
 }
 
-impl ToString for ConnectionKey {
-    fn to_string(&self) -> String {
-        self.0.clone()
+impl Display for ConnectionKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -335,7 +335,7 @@ async fn process_incoming_mail<
                                 #[cfg(feature = "message-schema-validation")]
                                 InternalMessageKind::UserMessageSchema(other_schema) => {
                                     let my_schema = schema_for!(U);
-                                    let kind = match serde_json::from_str::<RootSchema>(&other_schema) {
+                                    let kind = match serde_json::from_str::<Schema>(&other_schema) {
                                         Ok(other_schema) => {
                                             if other_schema == my_schema {
                                                 InternalMessageKind::UserMessageSchemaOk
