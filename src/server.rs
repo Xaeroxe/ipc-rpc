@@ -501,6 +501,13 @@ impl<U: UserMessage> Drop for IpcRpc<U> {
 
 impl<U: UserMessage> Drop for IpcRpcServer<U> {
     fn drop(&mut self) {
+        if matches!(
+            &*self.status_receiver.borrow(),
+            ConnectionStatus::DisconnectedCleanly | ConnectionStatus::DisconnectError(_)
+        ) {
+            return;
+        }
+
         if let Err(e) = self.sender.send(InternalMessage {
             uuid: Uuid::new_v4(),
             kind: InternalMessageKind::Hangup,
@@ -590,5 +597,73 @@ impl<U: UserMessage> IpcRpcBuilder<U> {
 impl<U: UserMessage> Default for IpcRpcBuilder<U> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn server_with_status(
+        status: ConnectionStatus,
+    ) -> (
+        IpcRpcServer<String>,
+        mpsc::UnboundedReceiver<InternalMessage<String>>,
+    ) {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        let (_status_sender, status_receiver) = watch::channel(status);
+        let (pending_reply_sender, _pending_reply_receiver) = mpsc::unbounded_channel();
+        #[cfg(feature = "message-schema-validation")]
+        let (_validation_sender, validation_receiver) = watch::channel(None);
+
+        (
+            IpcRpcServer {
+                sender,
+                status_receiver,
+                #[cfg(feature = "message-schema-validation")]
+                validation_receiver,
+                pending_reply_sender,
+                log_prefix: Arc::from("test as Server: "),
+            },
+            receiver,
+        )
+    }
+
+    #[test_log::test]
+    fn dropping_cleanly_disconnected_server_does_not_queue_hangup() {
+        let (server, mut receiver) = server_with_status(ConnectionStatus::DisconnectedCleanly);
+
+        drop(server);
+
+        assert!(
+            !matches!(
+                receiver.try_recv(),
+                Ok(InternalMessage {
+                    kind: InternalMessageKind::Hangup,
+                    ..
+                })
+            ),
+            "dropping an already-disconnected server queued Hangup; this reproduces the noisy BrokenPipe log in process_outgoing_server_mail"
+        );
+    }
+
+    #[test_log::test]
+    fn dropping_error_disconnected_server_does_not_queue_hangup() {
+        let (server, mut receiver) = server_with_status(ConnectionStatus::DisconnectError(
+            IpcRpcError::ConnectionDropped,
+        ));
+
+        drop(server);
+
+        assert!(
+            !matches!(
+                receiver.try_recv(),
+                Ok(InternalMessage {
+                    kind: InternalMessageKind::Hangup,
+                    ..
+                })
+            ),
+            "dropping an error-disconnected server queued Hangup; this can produce a false BrokenPipe error log"
+        );
     }
 }
