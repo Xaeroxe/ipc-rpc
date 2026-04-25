@@ -75,7 +75,10 @@ use std::{
 };
 
 use futures::{Stream, StreamExt};
-use ipc_channel::ipc::{IpcError, IpcReceiver, IpcSender, TryRecvError};
+use ipc_channel::{
+    ipc::{IpcReceiver, IpcSender},
+    IpcError, TryRecvError,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
@@ -177,7 +180,7 @@ pub enum IpcRpcError {
     #[error("io error")]
     IoError(#[from] Arc<io::Error>),
     #[error("internal ipc channel error")]
-    IpcChannelError(#[from] Arc<ipc_channel::Error>),
+    IpcChannelError(#[from] Arc<IpcError>),
     #[error("connection initialization timed out")]
     ConnectTimeout,
     #[error("connection established, but initial handshake was not performed properly")]
@@ -198,8 +201,8 @@ impl From<io::Error> for IpcRpcError {
     }
 }
 
-impl From<ipc_channel::Error> for IpcRpcError {
-    fn from(e: ipc_channel::Error) -> Self {
+impl From<IpcError> for IpcRpcError {
+    fn from(e: IpcError) -> Self {
         Self::IpcChannelError(Arc::new(e))
     }
 }
