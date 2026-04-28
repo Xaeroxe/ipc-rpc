@@ -906,7 +906,7 @@ mod tests {
         let drop_detector_clone = drop_detector.clone();
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async move {
-            let (server_key, mut server) =
+            let (server_key, server) =
                 server::IpcRpcServer::initialize_server(|message: IpcProtocolMessage| async move {
                     match message.kind {
                         _ => None,

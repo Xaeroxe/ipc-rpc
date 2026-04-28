@@ -323,7 +323,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
     }
 
     pub fn wait_for_client_to_connect(
-        &mut self,
+        &self,
     ) -> impl Future<Output = Result<(), IpcRpcError>> + Send + 'static {
         let mut status_receiver = self.status_receiver.clone();
         async move {
@@ -347,7 +347,7 @@ impl<U: UserMessage> IpcRpcServer<U> {
     }
 
     pub fn wait_for_client_to_disconnect(
-        &mut self,
+        &self,
     ) -> impl Future<Output = Result<(), IpcRpcError>> + Send + 'static {
         let mut status_receiver = self.status_receiver.clone();
         async move {
@@ -427,8 +427,7 @@ impl<U: UserMessage> IpcRpc<U> {
         SK: AsRef<OsStr>,
         SV: AsRef<OsStr>,
     {
-        let (server_connect_key, mut server) =
-            IpcRpcServer::initialize_server(message_handler).await?;
+        let (server_connect_key, server) = IpcRpcServer::initialize_server(message_handler).await?;
         log::info!(
             "Starting {} in dir {:?}",
             path_to_exe.as_ref().to_string_lossy(),
