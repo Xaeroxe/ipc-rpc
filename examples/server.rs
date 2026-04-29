@@ -27,7 +27,7 @@ async fn main() {
         .filter_level(log::LevelFilter::Info)
         .try_init()
         .unwrap();
-    let mut server_client_combo = IpcRpc::build()
+    let server_client_combo = IpcRpc::build()
         .finish(
             "target/debug/examples/client",
             message_handler,
